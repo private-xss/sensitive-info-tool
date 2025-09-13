@@ -17,6 +17,17 @@
 - **构建工具**: Vite
 - **数据存储**: 本地加密存储
 
+## 使用截图
+<img width="1236" height="836" alt="image" src="https://github.com/user-attachments/assets/2e6aae36-13a1-4d24-b631-e051b72f3766" />
+
+<img width="1236" height="836" alt="image" src="https://github.com/user-attachments/assets/e00e10d4-b261-448b-9294-1e46b6254899" />
+
+<img width="1236" height="836" alt="image" src="https://github.com/user-attachments/assets/6985a210-7005-4b45-8bc9-94579b20547d" />
+
+<img width="1236" height="836" alt="image" src="https://github.com/user-attachments/assets/9a9724cf-f0bf-4794-a44b-7cb9c682955a" />
+
+
+
 ## 安装和运行
 
 ### 开发环境
