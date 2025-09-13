@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+dist/
+
+# Tauri build outputs
+src-tauri/target/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
