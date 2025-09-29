@@ -1,0 +1,41 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / Vite
+node_modules/
+dist/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vite cache (optional)
+.vite/
+
+# Env files
+.env*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+
+# Tauri / Rust
+src-tauri/target/
+# If you ever build Rust outside src-tauri, ignore top-level target too
+/target/
+
+# Build outputs
+*.dmg
+*.app
+*.msi
+*.exe
+*.deb
+*.AppImage
+*.rpm
+
+# Misc
+coverage/
+**/*.local.*

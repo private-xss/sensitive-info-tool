@@ -1,0 +1,37 @@
+[package]
+name = "sensitive-info-tool-tauri"
+version = "1.0.0"
+description = "敏感信息管理工具"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["custom-protocol"]
+# 将本包的 feature 转发到 tauri 的 feature，配合 CLI 的 --features 使用
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "1.5.0", features = [] }
+
+[dependencies]
+tauri = { version = "1.5.0", features = [ "http-all", "dialog-all", "fs-all", "shell-open"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+base64 = "0.21"
+s3 = { package = "rust-s3", version = "0.34" }
+uuid = { version = "1.0", features = ["v4"] }
+mime_guess = "2.0"
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+url = "2.4"
+
+# 平台API相关依赖（钉钉、企业微信、微信、飞书）
+# 这些可以从第一版代码复制过来
