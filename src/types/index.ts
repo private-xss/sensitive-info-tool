@@ -73,11 +73,14 @@ export interface CloudOSSConfig {
   id: string
   name: string
   provider: CloudProvider
+  authType: 'longterm' | 'sts'
   accessKey: string
   secretKey: string
   region?: string
   endpoint?: string
   bucket?: string
+  sessionToken?: string
+  expiration?: string
   description?: string
   createdAt: string
   updatedAt: string

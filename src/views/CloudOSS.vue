@@ -23,6 +23,11 @@
               {{ getProviderName(record.provider) }}
             </a-tag>
           </template>
+          <template v-else-if="column.key === 'authType'">
+            <a-tag :color="record.authType === 'sts' ? '#52c41a' : '#1890ff'">
+              {{ record.authType === 'sts' ? 'STS临时凭证' : '长期凭证' }}
+            </a-tag>
+          </template>
           <template v-else-if="column.key === 'accessKey'">
             <a-input-password
               :value="record.accessKey"
@@ -36,6 +41,22 @@
               readonly
               style="border: none; background: transparent;"
             />
+          </template>
+          <template v-else-if="column.key === 'sessionToken'">
+            <div>
+              <a-input-password
+                :value="record.sessionToken || '未设置'"
+                readonly
+                style="border: none; background: transparent;"
+              />
+              <div v-if="record.expiration" style="font-size: 12px; color: #666; margin-top: 4px;">
+                过期时间: {{ formatDate(record.expiration) }}
+                <span v-if="isSTSExpired(record.expiration)" style="color: #ff4d4f;">(已过期)</span>
+                <span v-else style="color: #52c41a;">
+                  (剩余: {{ Math.floor(getSTSRemainingTime(record.expiration) / 60) }}分钟)
+                </span>
+              </div>
+            </div>
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
@@ -91,11 +112,37 @@
             </a-select-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="认证方式" name="authType">
+          <a-radio-group v-model:value="formData.authType" @change="onAuthTypeChange">
+            <a-radio value="longterm">长期凭证 (Access Key + Secret Key)</a-radio>
+            <a-radio value="sts">STS临时凭证 (Access Key + Secret Key + Session Token)</a-radio>
+          </a-radio-group>
+        </a-form-item>
         <a-form-item label="Access Key" name="accessKey">
           <a-input v-model:value="formData.accessKey" placeholder="请输入Access Key" />
         </a-form-item>
         <a-form-item label="Secret Key" name="secretKey">
           <a-input-password v-model:value="formData.secretKey" placeholder="请输入Secret Key" />
+        </a-form-item>
+        <a-form-item 
+          v-if="formData.authType === 'sts'" 
+          label="Session Token" 
+          name="sessionToken"
+        >
+          <a-input-password 
+            v-model:value="formData.sessionToken" 
+            placeholder="请输入Session Token（STS临时凭证必需）" 
+          />
+        </a-form-item>
+        <a-form-item 
+          v-if="formData.authType === 'sts'" 
+          label="凭证过期时间" 
+          name="expiration"
+        >
+          <a-input 
+            v-model:value="formData.expiration" 
+            placeholder="凭证过期时间（可选，格式：2024-01-01T12:00:00Z）" 
+          />
         </a-form-item>
         <a-form-item label="区域" name="region">
           <a-select v-model:value="formData.region" placeholder="请选择区域" @change="onRegionChange">
@@ -168,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onActivated } from 'vue'
+import { ref, computed, onMounted, onActivated } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import type { CloudOSSConfig, CloudProvider } from '@/types'
@@ -177,6 +224,27 @@ import { getProviderList, getProviderInfo } from '@/utils/cloud-providers'
 import { invoke } from '@tauri-apps/api/tauri'
 import OSSBrowser from '@/components/OSSBrowser.vue'
 import { ossListBuckets, type OssBucketSummary } from '@/utils/tauri-api'
+// STS相关工具函数
+const isSTSExpired = (expiration: string): boolean => {
+  try {
+    const expirationDate = new Date(expiration)
+    const now = new Date()
+    return now >= expirationDate
+  } catch {
+    return true // 如果解析失败，认为已过期
+  }
+}
+
+const getSTSRemainingTime = (expiration: string): number => {
+  try {
+    const expirationDate = new Date(expiration)
+    const now = new Date()
+    const remaining = Math.floor((expirationDate.getTime() - now.getTime()) / 1000)
+    return Math.max(0, remaining)
+  } catch {
+    return 0
+  }
+}
 
 const loading = ref(false)
 const modalVisible = ref(false)
@@ -193,20 +261,27 @@ const providerList = getProviderList()
 const formData = ref<Partial<CloudOSSConfig>>({
   name: '',
   provider: undefined,
+  authType: 'longterm',
   accessKey: '',
   secretKey: '',
+  sessionToken: '',
+  expiration: '',
   region: '',
   endpoint: '',
   bucket: '',
   description: ''
 })
 
-const rules = {
+const rules = computed(() => ({
   name: [{ required: true, message: '请输入配置名称' }],
   provider: [{ required: true, message: '请选择云厂商' }],
+  authType: [{ required: true, message: '请选择认证方式' }],
   accessKey: [{ required: true, message: '请输入Access Key' }],
-  secretKey: [{ required: true, message: '请输入Secret Key' }]
-}
+  secretKey: [{ required: true, message: '请输入Secret Key' }],
+  sessionToken: formData.value.authType === 'sts' 
+    ? [{ required: true, message: 'STS认证方式需要输入Session Token' }]
+    : []
+}))
 
 const columns = [
   {
@@ -220,6 +295,11 @@ const columns = [
     key: 'provider'
   },
   {
+    title: '认证方式',
+    dataIndex: 'authType',
+    key: 'authType'
+  },
+  {
     title: 'Access Key',
     dataIndex: 'accessKey',
     key: 'accessKey'
@@ -228,6 +308,11 @@ const columns = [
     title: 'Secret Key',
     dataIndex: 'secretKey',
     key: 'secretKey'
+  },
+  {
+    title: 'Session Token',
+    dataIndex: 'sessionToken',
+    key: 'sessionToken'
   },
   {
     title: '区域',
@@ -279,8 +364,11 @@ const showAddModal = () => {
   formData.value = {
     name: '',
     provider: undefined,
+    authType: 'longterm',
     accessKey: '',
     secretKey: '',
+    sessionToken: '',
+    expiration: '',
     region: '',
     endpoint: '',
     bucket: '',
@@ -299,6 +387,14 @@ const onProviderChange = (provider: CloudProvider) => {
   const providerInfo = getProviderInfo(provider)
   formData.value.region = providerInfo.regions[0] || ''
   formData.value.endpoint = providerInfo.defaultEndpoint
+}
+
+const onAuthTypeChange = (authType: 'longterm' | 'sts') => {
+  if (authType === 'longterm') {
+    // 切换到长期凭证时，清空STS相关字段
+    formData.value.sessionToken = ''
+    formData.value.expiration = ''
+  }
 }
 
 const onRegionChange = (region: string) => {
@@ -370,8 +466,11 @@ const handleSubmit = async () => {
       id: isEdit.value ? formData.value.id! : Date.now().toString(),
       name: formData.value.name!,
       provider: formData.value.provider!,
+      authType: formData.value.authType!,
       accessKey: formData.value.accessKey!,
       secretKey: formData.value.secretKey!,
+      sessionToken: formData.value.sessionToken,
+      expiration: formData.value.expiration,
       region: formData.value.region,
       endpoint: formData.value.endpoint,
       bucket: formData.value.bucket,
@@ -429,6 +528,8 @@ const testConnection = async (record: CloudOSSConfig) => {
         provider: record.provider,
         access_key: record.accessKey,
         secret_key: record.secretKey,
+        session_token: record.sessionToken,
+        expiration: record.expiration,
         region: record.region,
         endpoint: record.endpoint,
         bucket: record.bucket, // 可以为空
@@ -445,6 +546,8 @@ const testConnection = async (record: CloudOSSConfig) => {
             provider: record.provider,
             access_key: record.accessKey,
             secret_key: record.secretKey,
+            session_token: record.sessionToken,
+            expiration: record.expiration,
             region: record.region,
             endpoint: record.endpoint,
             bucket: record.bucket,
@@ -481,8 +584,11 @@ const copyToClipboard = async (record: CloudOSSConfig) => {
   try {
     const text = `名称: ${record.name}
 云厂商: ${getProviderName(record.provider)}
+认证方式: ${record.authType === 'sts' ? 'STS临时凭证' : '长期凭证'}
 Access Key: ${record.accessKey}
 Secret Key: ${record.secretKey}
+Session Token: ${record.sessionToken || '未设置'}
+过期时间: ${record.expiration || '未设置'}
 区域: ${record.region || '默认'}
 Endpoint: ${record.endpoint || '默认'}
 存储桶: ${record.bucket || '未设置'}
@@ -507,6 +613,8 @@ const fetchBuckets = async () => {
       provider: formData.value.provider,
       access_key: formData.value.accessKey,
       secret_key: formData.value.secretKey,
+      session_token: formData.value.sessionToken,
+      expiration: formData.value.expiration,
       region: formData.value.region,
       endpoint: formData.value.endpoint,
       bucket: formData.value.bucket,
@@ -520,7 +628,7 @@ const fetchBuckets = async () => {
     } else {
       console.error('获取存储桶失败:', res.error)
       // 对于某些云厂商，ListBuckets 可能不支持，提供手动输入提示
-      if (res.error && res.error.contains("AccessDenied")) {
+      if (res.error && res.error.includes("AccessDenied")) {
         message.warning('当前云厂商的 ListBuckets API 暂不支持，请手动输入存储桶名称')
       } else {
         throw new Error(res.error || '获取存储桶列表失败')
@@ -550,6 +658,7 @@ const formatDate = (dateStr: string) => {
     return dateStr
   }
 }
+
 
 onMounted(() => {
   loadData()

@@ -16,6 +16,8 @@ pub struct OssConfig {
     pub region: Option<String>,
     pub endpoint: Option<String>,
     pub bucket: Option<String>,
+    pub session_token: Option<String>,
+    pub expiration: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -147,14 +149,28 @@ fn build_bucket(cfg: &OssConfig) -> Result<Bucket, String> {
 
     let (region, _endpoint) = resolve_region_and_endpoint(cfg)?;
 
-    let credentials = Credentials::new(
-        Some(&cfg.access_key),
-        Some(&cfg.secret_key),
-        None,
-        None,
-        None,
-    )
-    .map_err(|e| e.to_string())?;
+    // 支持STS临时凭证
+    let credentials = if let Some(session_token) = &cfg.session_token {
+        // 使用STS临时凭证
+        Credentials::new(
+            Some(&cfg.access_key),
+            Some(&cfg.secret_key),
+            Some(session_token),
+            None,
+            None,
+        )
+        .map_err(|e| e.to_string())?
+    } else {
+        // 使用长期凭证
+        Credentials::new(
+            Some(&cfg.access_key),
+            Some(&cfg.secret_key),
+            None,
+            None,
+            None,
+        )
+        .map_err(|e| e.to_string())?
+    };
 
     let mut bucket = Bucket::new(&bucket_name, region, credentials).map_err(|e| e.to_string())?;
     // 设置底层请求超时，避免长时间挂起
@@ -189,13 +205,25 @@ pub async fn oss_list_buckets(cfg: OssConfig) -> Result<OssResult<Vec<OssBucketS
         _ => resolve_region_and_endpoint(&cfg_mut)?
     };
     
-    let mut credentials = Credentials::new(
-        Some(&cfg_mut.access_key),
-        Some(&cfg_mut.secret_key),
-        None,
-        None,
-        None,
-    ).map_err(|e| e.to_string())?;
+    let mut credentials = if let Some(session_token) = &cfg_mut.session_token {
+        // 使用STS临时凭证
+        Credentials::new(
+            Some(&cfg_mut.access_key),
+            Some(&cfg_mut.secret_key),
+            Some(session_token),
+            None,
+            None,
+        ).map_err(|e| e.to_string())?
+    } else {
+        // 使用长期凭证
+        Credentials::new(
+            Some(&cfg_mut.access_key),
+            Some(&cfg_mut.secret_key),
+            None,
+            None,
+            None,
+        ).map_err(|e| e.to_string())?
+    };
 
     // 首次尝试
     let list_res = tokio::time::timeout(
@@ -214,13 +242,25 @@ pub async fn oss_list_buckets(cfg: OssConfig) -> Result<OssResult<Vec<OssBucketS
                     cfg_mut.region = Some(new_region);
                     // 依据修正后的 region/endpoint 重建 region
                     region = resolve_region_and_endpoint(&cfg_mut)?.0;
-                    credentials = Credentials::new(
-                        Some(&cfg_mut.access_key),
-                        Some(&cfg_mut.secret_key),
-                        None,
-                        None,
-                        None,
-                    ).map_err(|e| e.to_string())?;
+                    credentials = if let Some(session_token) = &cfg_mut.session_token {
+                        // 使用STS临时凭证
+                        Credentials::new(
+                            Some(&cfg_mut.access_key),
+                            Some(&cfg_mut.secret_key),
+                            Some(session_token),
+                            None,
+                            None,
+                        ).map_err(|e| e.to_string())?
+                    } else {
+                        // 使用长期凭证
+                        Credentials::new(
+                            Some(&cfg_mut.access_key),
+                            Some(&cfg_mut.secret_key),
+                            None,
+                            None,
+                            None,
+                        ).map_err(|e| e.to_string())?
+                    };
                     tokio::time::timeout(
                         Duration::from_secs(12),
                         Bucket::list_buckets(region.clone(), credentials.clone())
