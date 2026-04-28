@@ -50,6 +50,7 @@
         :pagination="false"
         row-key="name"
         size="small"
+        :scroll="{ x: 600 }"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
@@ -73,21 +74,34 @@
           </template>
           
           <template v-if="column.key === 'actions'">
-            <a-space>
-              <a-button
-                v-if="record.type === 'file'"
-                size="small"
-                @click="downloadFile(record)"
-              >
-                下载
+            <a-dropdown v-if="record.type === 'file'">
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="download" @click="downloadFile(record)">
+                    下载
+                  </a-menu-item>
+                  <a-menu-divider />
+                  <a-menu-item key="delete" @click="deleteFile(record)" style="color: #ff4d4f;">
+                    删除
+                  </a-menu-item>
+                </a-menu>
+              </template>
+              <a-button size="small">
+                操作 <DownOutlined />
               </a-button>
-              <a-popconfirm
-                title="确定要删除这个文件吗？"
-                @confirm="deleteFile(record)"
-              >
-                <a-button size="small" danger>删除</a-button>
-              </a-popconfirm>
-            </a-space>
+            </a-dropdown>
+            <a-dropdown v-else>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="delete" @click="deleteFile(record)" style="color: #ff4d4f;">
+                    删除
+                  </a-menu-item>
+                </a-menu>
+              </template>
+              <a-button size="small">
+                操作 <DownOutlined />
+              </a-button>
+            </a-dropdown>
           </template>
         </template>
       </a-table>
@@ -117,7 +131,8 @@ import {
   UploadOutlined,
   FolderOutlined,
   FileOutlined,
-  FolderAddOutlined
+  FolderAddOutlined,
+  DownOutlined
 } from '@ant-design/icons-vue'
 
 interface FileItem {
@@ -188,7 +203,8 @@ const columns = [
   {
     title: '操作',
     key: 'actions',
-    width: 150,
+    width: 120,
+    fixed: 'right'
   },
 ]
 

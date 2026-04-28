@@ -16,6 +16,7 @@
         :loading="loading"
         row-key="id"
         :pagination="{ pageSize: 10 }"
+        :scroll="{ x: 1200 }"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'provider'">
@@ -60,21 +61,31 @@
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
-              <a-button type="link" size="small" @click="testConnection(record)">
-                测试连接
-              </a-button>
               <a-button type="link" size="small" @click="openBrowser(record)">
                 打开浏览器
               </a-button>
-              <a-button type="link" size="small" @click="editItem(record)">
-                编辑
-              </a-button>
-              <a-button type="link" size="small" @click="copyToClipboard(record)">
-                复制
-              </a-button>
-              <a-button type="link" size="small" danger @click="deleteItem(record)">
-                删除
-              </a-button>
+              <a-dropdown>
+                <template #overlay>
+                  <a-menu>
+                    <a-menu-item key="test" @click="testConnection(record)">
+                      测试连接
+                    </a-menu-item>
+                    <a-menu-item key="edit" @click="editItem(record)">
+                      编辑
+                    </a-menu-item>
+                    <a-menu-item key="copy" @click="copyToClipboard(record)">
+                      复制
+                    </a-menu-item>
+                    <a-menu-divider />
+                    <a-menu-item key="delete" @click="deleteItem(record)" style="color: #ff4d4f;">
+                      删除
+                    </a-menu-item>
+                  </a-menu>
+                </template>
+                <a-button type="link" size="small">
+                  更多 <DownOutlined />
+                </a-button>
+              </a-dropdown>
             </a-space>
           </template>
         </template>
@@ -162,7 +173,7 @@
           <a-input-group compact>
             <a-input 
               v-model:value="formData.bucket" 
-              placeholder="请输入存储桶名称（可选）" 
+              placeholder="请输入存储桶名称 " 
               style="width: calc(100% - 100px)"
             />
             <a-button 
@@ -217,7 +228,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onActivated } from 'vue'
 import { message } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
 import type { CloudOSSConfig, CloudProvider } from '@/types'
 import { SimpleStorage } from '@/utils/storage-simple'
 import { getProviderList, getProviderInfo } from '@/utils/cloud-providers'
@@ -332,7 +343,8 @@ const columns = [
   {
     title: '操作',
     key: 'action',
-    width: 300
+    width: 200,
+    fixed: 'right'
   }
 ]
 

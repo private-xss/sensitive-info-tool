@@ -202,6 +202,16 @@ pub async fn oss_list_buckets(cfg: OssConfig) -> Result<OssResult<Vec<OssBucketS
             };
             (region, Some("https://oss.aliyuncs.com".to_string()))
         }
+        "huawei" => {
+            // 华为云 OBS ListBuckets 需要使用区域端点
+            let region_name = cfg_mut.region.clone().unwrap_or_else(|| "cn-north-1".to_string());
+            let endpoint = format!("https://obs.{}.myhuaweicloud.com", region_name);
+            let region = Region::Custom {
+                region: region_name,
+                endpoint: endpoint.clone(),
+            };
+            (region, Some(endpoint))
+        }
         _ => resolve_region_and_endpoint(&cfg_mut)?
     };
     

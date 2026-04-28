@@ -135,4 +135,29 @@ export class SimpleStorage {
       return []
     }
   }
+
+  // 同步获取缓存数据（从localStorage）
+  static get(key: string): any {
+    try {
+      const cachedData = localStorage.getItem(key)
+      if (cachedData) {
+        const decryptedData = simpleDecrypt(cachedData, ENCRYPTION_KEY)
+        return JSON.parse(decryptedData)
+      }
+      return null
+    } catch (error) {
+      console.error('获取缓存数据失败:', error)
+      return null
+    }
+  }
+
+  // 同步设置缓存数据（到localStorage）
+  static set(key: string, data: any): void {
+    try {
+      const encryptedData = simpleEncrypt(JSON.stringify(data), ENCRYPTION_KEY)
+      localStorage.setItem(key, encryptedData)
+    } catch (error) {
+      console.error('设置缓存数据失败:', error)
+    }
+  }
 }

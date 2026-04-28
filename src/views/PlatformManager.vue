@@ -302,7 +302,7 @@ const testConnection = async (platform: PlatformType) => {
     if (result.success) {
       message.success(result.message || '连接测试成功')
       // 如果测试成功，打开用户列表
-      if (platform !== 'wechat-miniprogram') {
+      if (platform !== 'wechat') {
         currentPlatform.value = platform
         usersModalVisible.value = true
         loadUsers()

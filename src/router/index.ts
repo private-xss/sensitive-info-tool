@@ -44,7 +44,22 @@ const routes: RouteRecordRaw[] = [
     path: '/tools',
     name: 'tools',
     component: () => import('../views/Tools.vue')
-  }
+  },
+  {
+    path: '/cloud-services',
+    name: 'cloud-services',
+    component: () => import('../views/CloudServices.vue')
+  },
+  {
+    path: '/decompiler',
+    name: 'decompiler',
+    component: () => import('../views/DecompilerView.vue')
+  },
+  {
+    path: '/jwt',
+    name: 'jwt',
+    component: () => import('../views/JwtTool.vue')
+  },
 ]
 
 const router = createRouter({

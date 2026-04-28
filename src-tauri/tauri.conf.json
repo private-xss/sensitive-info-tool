@@ -18,7 +18,22 @@
       },
       "http": {
         "all": true,
-        "request": true
+        "request": true,
+        "scope": [
+          "https://api.weixin.qq.com/**",
+          "https://qyapi.weixin.qq.com/**",
+          "https://oapi.dingtalk.com/**",
+          "https://open.feishu.cn/**",
+          "https://*.aliyuncs.com/**",
+          "https://*.myqcloud.com/**",
+          "https://*.myhuaweicloud.com/**",
+          "https://*.amazonaws.com/**",
+          "https://*.qiniucs.com/**",
+          "https://*.jdcloud-oss.com/**",
+          "https://*.ksyuncs.com/**",
+          "https://*.qingstor.com/**",
+          "https://api.ucloud.cn/**"
+        ]
       },
       "fs": {
         "all": true,

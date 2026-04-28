@@ -72,6 +72,14 @@ export const cloudProviders: Record<CloudProvider, CloudProviderInfo> = {
     color: '#29c4d0',
     regions: ['default'],
     defaultEndpoint: 'localhost:9000'
+  },
+  ucloud: {
+    key: 'ucloud',
+    name: 'UCloud',
+    icon: 'U',
+    color: '#00a0e9',
+    regions: ['cn-bj', 'cn-bj2', 'cn-sh', 'cn-sh2', 'cn-gd', 'cn-gd2', 'cn-hk', 'us-ca', 'us-wa', 'ge-fra', 'sg', 'tw', 'kr', 'th', 'vn', 'id', 'in', 'au'],
+    defaultEndpoint: 'api.ucloud.cn'
   }
 }
 

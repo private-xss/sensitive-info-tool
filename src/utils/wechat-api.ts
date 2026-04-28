@@ -1,16 +1,5 @@
 // 微信小程序/公众号API工具类
-
-// 动态导入Tauri API（仅在Tauri环境中可用）
-let tauriFetch: any = null;
-try {
-  if (typeof window !== 'undefined' && (window as any).__TAURI__) {
-    import('@tauri-apps/api/http').then(module => {
-      tauriFetch = module.fetch;
-    });
-  }
-} catch (error) {
-  console.log('Not in Tauri environment, using browser fetch');
-}
+import '../types'  // 导入全局类型声明
 
 export interface WeChatTokenResponse {
   access_token: string
@@ -25,130 +14,148 @@ export interface WeChatUserInfo {
   unionid?: string
 }
 
+// Tauri HTTP 模块类型
+interface TauriBody {
+  type: string
+  payload: any
+}
+
+interface TauriResponse<T> {
+  url: string
+  status: number
+  ok: boolean
+  headers: Record<string, string>
+  data: T
+}
+
+// 动态导入Tauri API（仅在Tauri环境中可用）
+let tauriHttpModule: any = null
+
 export class WeChatAPI {
   private static readonly BASE_URL = 'https://api.weixin.qq.com'
 
   // 检测是否在Tauri环境中
   private static isTauriEnvironment(): boolean {
-    return typeof window !== 'undefined' && (window as any).__TAURI__ !== undefined;
+    return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
   }
 
-  // 获取适当的fetch函数
-  private static async getFetch() {
-    if (this.isTauriEnvironment() && tauriFetch) {
-      return tauriFetch;
-    } else if (this.isTauriEnvironment()) {
-      // 如果在Tauri环境但还没有加载，动态导入
-      try {
-        const module = await import('@tauri-apps/api/http');
-        tauriFetch = module.fetch;
-        return tauriFetch;
-      } catch (error) {
-        console.warn('Failed to load Tauri HTTP module, falling back to browser fetch');
-        return fetch;
-      }
+  // 获取Tauri HTTP模块
+  private static async getTauriHttp() {
+    if (tauriHttpModule) {
+      return tauriHttpModule;
     }
-    return fetch;
+    try {
+      tauriHttpModule = await import('@tauri-apps/api/http');
+      return tauriHttpModule;
+    } catch (error) {
+      console.warn('Failed to load Tauri HTTP module');
+      return null;
+    }
+  }
+
+  // 统一的HTTP请求方法
+  private static async httpRequest<T>(
+    url: string,
+    method: 'GET' | 'POST',
+    options?: {
+      headers?: Record<string, string>
+      body?: any
+      queryParams?: Record<string, string>
+    }
+  ): Promise<T> {
+    const http = await this.getTauriHttp();
+
+    if (http && this.isTauriEnvironment()) {
+      // 使用 Tauri HTTP 模块
+      const fetchOptions: any = {
+        method,
+        headers: options?.headers || {},
+      };
+
+      if (options?.queryParams) {
+        fetchOptions.query = options.queryParams;
+      }
+
+      if (options?.body && method === 'POST') {
+        fetchOptions.body = http.Body.json(options.body);
+      }
+
+      const response: TauriResponse<T> = await http.fetch(url, fetchOptions);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return response.data;
+    } else {
+      // 回退到浏览器 fetch
+      const response = await fetch(url, {
+        method,
+        headers: options?.headers || {},
+        body: options?.body && method === 'POST' ? JSON.stringify(options.body) : undefined,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json() as T;
+    }
+  }
+
+  // 检查微信API错误
+  private static checkError(data: any, operation: string): void {
+    if (data.errcode && data.errcode !== 0) {
+      throw new Error(`${operation}: ${data.errmsg} (错误码: ${data.errcode})`);
+    }
   }
 
   /**
    * 获取微信小程序/公众号Access Token
-   * @param appId 小程序的AppID或公众号的AppID
-   * @param appSecret 小程序的AppSecret或公众号的AppSecret
-   * @returns Promise<WeChatTokenResponse>
    */
   static async getAccessToken(appId: string, appSecret: string): Promise<WeChatTokenResponse> {
     const url = `${this.BASE_URL}/cgi-bin/token`
-    const params = new URLSearchParams({
-      grant_type: 'client_credential',
-      appid: appId,
-      secret: appSecret
-    })
 
     try {
-      console.log(`环境检测: ${this.isTauriEnvironment() ? 'Tauri' : '浏览器'}`)
-      console.log(`请求URL: ${url}?${params}`)
-      console.log(`App ID: ${appId}`)
-      console.log(`App Secret: ${appSecret.substring(0, 8)}...`)
-      
-      const fetchFn = await this.getFetch();
-      const isTauri = this.isTauriEnvironment();
-      
-      const response = await fetchFn(`${url}?${params}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (compatible; sensitive-info-tool)'
+      const data = await this.httpRequest<WeChatTokenResponse>(url, 'GET', {
+        queryParams: {
+          grant_type: 'client_credential',
+          appid: appId,
+          secret: appSecret
         }
-      })
+      });
 
-      console.log(`响应状态: ${response.status}`)
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`)
-      }
-
-      // Tauri和浏览器的响应处理方式不同
-      const data = isTauri ? response.data : await response.json();
-      console.log(`响应数据:`, data)
-      
-      if (data.errcode && data.errcode !== 0) {
-        throw new Error(`微信API错误: ${data.errmsg} (错误码: ${data.errcode})`)
-      }
-
-      return data
+      this.checkError(data, '微信API错误');
+      return data;
     } catch (error) {
-      console.error('获取Access Token失败:', error)
-      throw error
+      console.error('获取Access Token失败:', error);
+      throw error;
     }
   }
 
   /**
    * 验证Access Token是否有效
-   * @param accessToken Access Token
-   * @returns Promise<boolean>
    */
   static async validateAccessToken(accessToken: string): Promise<boolean> {
     const url = `${this.BASE_URL}/cgi-bin/get_api_domain_ip`
-    const params = new URLSearchParams({
-      access_token: accessToken
-    })
 
     try {
-      const fetchFn = await this.getFetch();
-      const isTauri = this.isTauriEnvironment();
-      
-      const response = await fetchFn(`${url}?${params}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
+      const data = await this.httpRequest<any>(url, 'GET', {
+        queryParams: { access_token: accessToken }
+      });
 
-      if (!response.ok) {
-        return false
-      }
-
-      const data = isTauri ? response.data : await response.json();
-      return !data.errcode || data.errcode === 0
+      return !data.errcode || data.errcode === 0;
     } catch (error) {
-      console.error('验证Access Token失败:', error)
-      return false
+      console.error('验证Access Token失败:', error);
+      return false;
     }
   }
 
   /**
    * 获取小程序码（需要Access Token）
-   * @param accessToken Access Token
-   * @param scene 场景值
-   * @param page 页面路径
-   * @returns Promise<Blob>
    */
-  static async getWxaCode(accessToken: string, scene: string, page?: string): Promise<Blob> {
+  static async getWxaCode(accessToken: string, scene: string, page?: string): Promise<any> {
     const url = `${this.BASE_URL}/wxa/getwxacodeunlimit`
-    const params = new URLSearchParams({
-      access_token: accessToken
-    })
 
     const body = {
       scene: scene,
@@ -160,43 +167,63 @@ export class WeChatAPI {
     }
 
     try {
-      const response = await fetch(`${url}?${params}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      })
+      const http = await this.getTauriHttp();
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (http && this.isTauriEnvironment()) {
+        const response = await http.fetch(url, {
+          method: 'POST',
+          query: { access_token: accessToken },
+          headers: { 'Content-Type': 'application/json' },
+          body: http.Body.json(body),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = response.data;
+        if (data.errcode && data.errcode !== 0) {
+          throw new Error(`获取小程序码失败: ${data.errmsg} (错误码: ${data.errcode})`);
+        }
+        return { url: 'data:image/jpeg;base64,' + data, type: 'image' };
+      } else {
+        const response = await fetch(`${url}?access_token=${accessToken}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          this.checkError(data, '获取小程序码失败');
+          return data;
+        } else {
+          const blob = await response.blob();
+          const imageUrl = URL.createObjectURL(blob);
+          return { url: imageUrl, type: 'image' };
+        }
       }
-
-      return await response.blob()
     } catch (error) {
-      console.error('获取小程序码失败:', error)
-      throw error
+      console.error('获取小程序码失败:', error);
+      throw error;
     }
   }
 
   /**
    * 发送模板消息（需要Access Token）
-   * @param accessToken Access Token
-   * @param openid 用户openid
-   * @param templateId 模板ID
-   * @param data 模板数据
-   * @returns Promise<any>
    */
   static async sendTemplateMessage(
-    accessToken: string, 
-    openid: string, 
-    templateId: string, 
+    accessToken: string,
+    openid: string,
+    templateId: string,
     data: any
   ): Promise<any> {
     const url = `${this.BASE_URL}/cgi-bin/message/wxopen/template/send`
-    const params = new URLSearchParams({
-      access_token: accessToken
-    })
 
     const body = {
       touser: openid,
@@ -206,135 +233,405 @@ export class WeChatAPI {
     }
 
     try {
-      const response = await fetch(`${url}?${params}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      })
+      const result = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-      
-      if (result.errcode && result.errcode !== 0) {
-        throw new Error(`发送模板消息失败: ${result.errmsg} (错误码: ${result.errcode})`)
-      }
-
-      return result
+      this.checkError(result, '发送模板消息失败');
+      return result;
     } catch (error) {
-      console.error('发送模板消息失败:', error)
-      throw error
+      console.error('发送模板消息失败:', error);
+      throw error;
     }
   }
 
   /**
    * 获取用户信息（通过code）
-   * @param appId 小程序AppID
-   * @param appSecret 小程序AppSecret
-   * @param code 用户授权码
-   * @returns Promise<WeChatUserInfo>
    */
   static async getUserInfo(appId: string, appSecret: string, code: string): Promise<WeChatUserInfo> {
     const url = `${this.BASE_URL}/sns/jscode2session`
-    const params = new URLSearchParams({
-      appid: appId,
-      secret: appSecret,
-      js_code: code,
-      grant_type: 'authorization_code'
-    })
 
     try {
-      const response = await fetch(`${url}?${params}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
+      const data = await this.httpRequest<WeChatUserInfo>(url, 'GET', {
+        queryParams: {
+          appid: appId,
+          secret: appSecret,
+          js_code: code,
+          grant_type: 'authorization_code'
         }
-      })
+      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
-      
-      if (data.errcode && data.errcode !== 0) {
-        throw new Error(`获取用户信息失败: ${data.errmsg} (错误码: ${data.errcode})`)
-      }
-
-      return data
+      this.checkError(data as any, '获取用户信息失败');
+      return data;
     } catch (error) {
-      console.error('获取用户信息失败:', error)
-      throw error
+      console.error('获取用户信息失败:', error);
+      throw error;
     }
   }
 
   /**
-   * 获取小程序码
-   * @param accessToken Access Token
-   * @param path 页面路径
-   * @param scene 场景值
-   * @returns Promise<any>
+   * 获取小程序码 (别名方法)
    */
   static async getQRCode(accessToken: string, path: string, scene: string): Promise<any> {
-    const url = `${this.BASE_URL}/wxa/getwxacodeunlimit`
-    
-    const body = {
-      scene: scene,
-      page: path,
-      width: 430,
-      auto_color: false,
-      line_color: { r: 0, g: 0, b: 0 },
-      is_hyaline: false
+    return this.getWxaCode(accessToken, scene, path);
+  }
+
+  // ===== 新增: 微信公众号/小程序更多功能 =====
+
+  /**
+   * 获取关注该公众号/小程序的用户列表 (公众号)
+   */
+  static async getUserList(accessToken: string, nextOpenid?: string): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/user/get`
+    const queryParams: Record<string, string> = { access_token: accessToken }
+    if (nextOpenid) {
+      queryParams.next_openid = nextOpenid
     }
-
     try {
-      const fetchFn = await this.getFetch();
-      const isTauri = this.isTauriEnvironment();
-      
-      const response = await fetchFn(`${url}?access_token=${accessToken}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      if (isTauri) {
-        // Tauri环境下的处理
-        const data = response.data;
-        if (data.errcode && data.errcode !== 0) {
-          throw new Error(`获取小程序码失败: ${data.errmsg} (错误码: ${data.errcode})`)
-        }
-        return { url: 'data:image/jpeg;base64,' + data, type: 'image' };
-      } else {
-        // 浏览器环境下的处理
-        const contentType = response.headers.get('content-type')
-        if (contentType && contentType.includes('application/json')) {
-          const data = await response.json()
-          if (data.errcode && data.errcode !== 0) {
-            throw new Error(`获取小程序码失败: ${data.errmsg} (错误码: ${data.errcode})`)
-          }
-          return data
-        } else {
-          // 返回图片数据
-          const blob = await response.blob()
-          const imageUrl = URL.createObjectURL(blob)
-          return { url: imageUrl, type: 'image' }
-        }
-      }
+      const data = await this.httpRequest<any>(url, 'GET', { queryParams });
+      this.checkError(data, '获取用户列表失败');
+      return data;
     } catch (error) {
-      console.error('获取小程序码失败:', error)
-      throw error
+      console.error('获取用户列表失败:', error);
+      throw error;
     }
   }
 
+  /**
+   * 获取用户基本信息 (公众号 - UnionID机制)
+   */
+  static async getUserInfoByOpenid(accessToken: string, openid: string, lang: string = 'zh_CN'): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/user/info`
+    try {
+      const data = await this.httpRequest<any>(url, 'GET', {
+        queryParams: { access_token: accessToken, openid, lang }
+      });
+      this.checkError(data, '获取用户基本信息失败');
+      return data;
+    } catch (error) {
+      console.error('获取用户基本信息失败:', error);
+      throw error;
+    }
+  }
 
+  /**
+   * 批量获取用户基本信息
+   */
+  static async batchGetUserInfo(accessToken: string, userList: { openid: string; lang?: string }[]): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/user/info/batchget`
+    const body = {
+      user_list: userList.map(u => ({ openid: u.openid, lang: u.lang || 'zh_CN' }))
+    }
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
+      this.checkError(data, '批量获取用户信息失败');
+      return data;
+    } catch (error) {
+      console.error('批量获取用户信息失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取菜单配置
+   */
+  static async getMenu(accessToken: string): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/menu/get`
+    try {
+      const data = await this.httpRequest<any>(url, 'GET', {
+        queryParams: { access_token: accessToken }
+      });
+      this.checkError(data, '获取菜单失败');
+      return data;
+    } catch (error) {
+      console.error('获取菜单失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 创建自定义菜单
+   */
+  static async createMenu(accessToken: string, menuData: any): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/menu/create`
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body: menuData
+      });
+      this.checkError(data, '创建菜单失败');
+      return data;
+    } catch (error) {
+      console.error('创建菜单失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 删除自定义菜单
+   */
+  static async deleteMenu(accessToken: string): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/menu/delete`
+    try {
+      const data = await this.httpRequest<any>(url, 'GET', {
+        queryParams: { access_token: accessToken }
+      });
+      this.checkError(data, '删除菜单失败');
+      return data;
+    } catch (error) {
+      console.error('删除菜单失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取模板列表 (小程序)
+   */
+  static async getTemplateList(accessToken: string): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/wxopen/template/list`
+    try {
+      const data = await this.httpRequest<any>(url, 'GET', {
+        queryParams: { access_token: accessToken }
+      });
+      this.checkError(data, '获取模板列表失败');
+      return data;
+    } catch (error) {
+      console.error('获取模板列表失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 发送订阅消息 (小程序)
+   */
+  static async sendSubscribeMessage(accessToken: string, openid: string, templateId: string, data: any, page?: string): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/message/subscribe/send`
+    const body: any = {
+      touser: openid,
+      template_id: templateId,
+      data
+    }
+    if (page) body.page = page
+    try {
+      const result = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
+      this.checkError(result, '发送订阅消息失败');
+      return result;
+    } catch (error) {
+      console.error('发送订阅消息失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取素材列表
+   */
+  static async getMaterialList(accessToken: string, type: string = 'image', offset: number = 0, count: number = 20): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/material/batchget_material`
+    const body = { type, offset, count }
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
+      this.checkError(data, '获取素材列表失败');
+      return data;
+    } catch (error) {
+      console.error('获取素材列表失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 上传临时素材
+   */
+  static async uploadMedia(accessToken: string, mediaType: string, mediaData: any): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/media/upload`
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken, type: mediaType },
+        body: mediaData
+      });
+      this.checkError(data, '上传素材失败');
+      return data;
+    } catch (error) {
+      console.error('上传素材失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取公众号的自动回复规则
+   */
+  static async getCurrentAutoreplyInfo(accessToken: string): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/get_current_autoreply_info`
+    try {
+      const data = await this.httpRequest<any>(url, 'GET', {
+        queryParams: { access_token: accessToken }
+      });
+      this.checkError(data, '获取自动回复规则失败');
+      return data;
+    } catch (error) {
+      console.error('获取自动回复规则失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 生成带参数的二维码 (公众号)
+   */
+  static async createQrCode(accessToken: string, sceneStr: string, expireSeconds?: number): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/qrcode/create`
+    const body: any = expireSeconds
+      ? { expire_seconds: expireSeconds, action_name: 'QR_STR_SCENE', action_info: { scene: { scene_str } } }
+      : { action_name: 'QR_LIMIT_STR_SCENE', action_info: { scene: { scene_str } } }
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
+      this.checkError(data, '生成二维码失败');
+      return data;
+    } catch (error) {
+      console.error('生成二维码失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 短key托管 (获取短链接)
+   */
+  static async getShortUrl(accessToken: string, longUrl: string): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/shorten/gen`
+    const body = { long_url: longUrl }
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
+      this.checkError(data, '获取短链接失败');
+      return data;
+    } catch (error) {
+      console.error('获取短链接失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取小程序数据日报
+   */
+  static async getDailySummary(accessToken: string, date: string, days: number = 7): Promise<any> {
+    const url = `${this.BASE_URL}/datacube/getweanalysisappiddailysummarytrend`
+    const body = { begin_date: date, end_date: date }
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
+      this.checkError(data, '获取数据日报失败');
+      return data;
+    } catch (error) {
+      console.error('获取数据日报失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取小程序访问留存
+   */
+  static async getDailyRetain(accessToken: string, date: string): Promise<any> {
+    const url = `${this.BASE_URL}/datacube/getweanalysisappiddailyretaininfo`
+    const body = { begin_date: date, end_date: date }
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
+      this.checkError(data, '获取访问留存失败');
+      return data;
+    } catch (error) {
+      console.error('获取访问留存失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取小程序访问页面数据
+   */
+  static async getDailyVisitPage(accessToken: string, date: string): Promise<any> {
+    const url = `${this.BASE_URL}/datacube/getweanalysisappidvisitpage`
+    const body = { begin_date: date, end_date: date }
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
+      this.checkError(data, '获取访问页面数据失败');
+      return data;
+    } catch (error) {
+      console.error('获取访问页面数据失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取接口分析数据
+   */
+  static async getApiAnalysis(accessToken: string, date: string): Promise<any> {
+    const url = `${this.BASE_URL}/datacube/getweanalysisapiddailysummarytrend`
+    const body = { begin_date: date, end_date: date }
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
+      this.checkError(data, '获取接口分析数据失败');
+      return data;
+    } catch (error) {
+      console.error('获取接口分析数据失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取微信服务器IP地址
+   */
+  static async getCallbackIp(accessToken: string): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/getcallbackip`
+    try {
+      const data = await this.httpRequest<any>(url, 'GET', {
+        queryParams: { access_token: accessToken }
+      });
+      this.checkError(data, '获取微信服务器IP失败');
+      return data;
+    } catch (error) {
+      console.error('获取微信服务器IP失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 网络检测
+   */
+  static async netCheck(accessToken: string, action: string = 'all', checkOperator: string = 'DEFAULT'): Promise<any> {
+    const url = `${this.BASE_URL}/cgi-bin/callback/check`
+    const body = { action, check_operator: checkOperator }
+    try {
+      const data = await this.httpRequest<any>(url, 'POST', {
+        queryParams: { access_token: accessToken },
+        body
+      });
+      this.checkError(data, '网络检测失败');
+      return data;
+    } catch (error) {
+      console.error('网络检测失败:', error);
+      throw error;
+    }
+  }
 }

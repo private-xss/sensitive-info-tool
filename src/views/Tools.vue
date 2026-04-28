@@ -25,6 +25,24 @@
             <a-button type="default" block @click="templateMessageModalVisible = true" :loading="wechatLoading">
               发送模板消息
             </a-button>
+            <a-button type="default" block @click="wechatGetUserList" :loading="wechatLoading">
+              获取用户列表(公众号)
+            </a-button>
+            <a-button type="default" block @click="wechatGetMenu" :loading="wechatLoading">
+              获取菜单配置
+            </a-button>
+            <a-button type="default" block @click="wechatGetTemplateList" :loading="wechatLoading">
+              获取模板列表
+            </a-button>
+            <a-button type="default" block @click="wechatGetMaterialList" :loading="wechatLoading">
+              获取素材列表
+            </a-button>
+            <a-button type="default" block @click="wechatGetCallbackIp" :loading="wechatLoading">
+              获取微信服务器IP
+            </a-button>
+            <a-button type="default" block @click="wechatNetCheck" :loading="wechatLoading">
+              网络检测
+            </a-button>
           </a-space>
         </a-card>
       </a-col>
@@ -51,6 +69,21 @@
             </a-button>
             <a-button type="default" block @click="enterpriseMessageModalVisible = true" :loading="enterpriseLoading">
               发送应用消息
+            </a-button>
+            <a-button type="default" block @click="enterpriseGetTagList" :loading="enterpriseLoading">
+              获取标签列表
+            </a-button>
+            <a-button type="default" block @click="enterpriseGetAgentList" :loading="enterpriseLoading">
+              获取应用列表
+            </a-button>
+            <a-button type="default" block @click="enterpriseGetExternalContactList" :loading="enterpriseLoading">
+              获取外部联系人
+            </a-button>
+            <a-button type="default" block @click="enterpriseGetExternalGroupChatList" :loading="enterpriseLoading">
+              获取客户群列表
+            </a-button>
+            <a-button type="default" block @click="enterpriseGetCallbackIp" :loading="enterpriseLoading">
+              获取服务器IP
             </a-button>
           </a-space>
         </a-card>
@@ -82,6 +115,18 @@
             <a-button type="default" block @click="feishuMessageModalVisible = true" :loading="feishuLoading">
               发送消息
             </a-button>
+            <a-button type="default" block @click="feishuGetChatList" :loading="feishuLoading">
+              获取群列表
+            </a-button>
+            <a-button type="default" block @click="feishuGetDocList" :loading="feishuLoading">
+              获取云文档列表
+            </a-button>
+            <a-button type="default" block @click="feishuGetCalendarList" :loading="feishuLoading">
+              获取日历列表
+            </a-button>
+            <a-button type="default" block @click="feishuGetApprovalList" :loading="feishuLoading">
+              获取审批定义
+            </a-button>
           </a-space>
         </a-card>
       </a-col>
@@ -108,6 +153,24 @@
             </a-button>
             <a-button type="default" block @click="dingtalkMessageModalVisible = true" :loading="dingtalkLoading">
               发送工作通知
+            </a-button>
+            <a-button type="default" block @click="dingtalkGetRoleList" :loading="dingtalkLoading">
+              获取角色列表
+            </a-button>
+            <a-button type="default" block @click="dingtalkGetTagList" :loading="dingtalkLoading">
+              获取标签列表
+            </a-button>
+            <a-button type="default" block @click="dingtalkGetChatList" :loading="dingtalkLoading">
+              获取群列表
+            </a-button>
+            <a-button type="default" block @click="dingtalkGetExternalContactList" :loading="dingtalkLoading">
+              获取外部联系人
+            </a-button>
+            <a-button type="default" block @click="dingtalkGetProcessTemplateList" :loading="dingtalkLoading">
+              获取审批模板
+            </a-button>
+            <a-button type="default" block @click="dingtalkGetHrmEmployeeList" :loading="dingtalkLoading">
+              获取人事员工列表
             </a-button>
           </a-space>
         </a-card>
@@ -1205,6 +1268,331 @@ const sendDingTalkWorkMessage = async () => {
   } finally {
     dingtalkLoading.value = false
   }
+}
+
+// ===== 微信新增功能 =====
+const wechatGetUserList = async () => {
+  if (!selectedWeChat.value) { message.warning('请先选择微信小程序'); return }
+  wechatLoading.value = true
+  try {
+    const item = wechatData.value.find(i => i.id === selectedWeChat.value)!
+    appendResult(`获取微信用户列表: ${item.name}`)
+    const tokenResponse = await WeChatAPI.getAccessToken(item.appId, item.appSecret)
+    const userList = await WeChatAPI.getUserList(tokenResponse.access_token)
+    appendResult(`✅ 用户列表获取成功！`)
+    appendResult(`总关注用户数: ${userList.total || 0}`)
+    appendResult(`本次返回数: ${userList.count || 0}`)
+    if (userList.data && userList.data.openid) {
+      userList.data.openid.slice(0, 5).forEach((openid: string, index: number) => {
+        appendResult(`  ${index + 1}. OpenID: ${openid}`)
+      })
+    }
+    message.success('用户列表获取成功')
+  } catch (error) { appendResult(`❌ 获取用户列表失败: ${error}`); message.error('获取用户列表失败') }
+  finally { wechatLoading.value = false }
+}
+
+const wechatGetMenu = async () => {
+  if (!selectedWeChat.value) { message.warning('请先选择微信小程序'); return }
+  wechatLoading.value = true
+  try {
+    const item = wechatData.value.find(i => i.id === selectedWeChat.value)!
+    appendResult(`获取微信菜单配置: ${item.name}`)
+    const tokenResponse = await WeChatAPI.getAccessToken(item.appId, item.appSecret)
+    const menu = await WeChatAPI.getMenu(tokenResponse.access_token)
+    appendResult(`✅ 菜单配置获取成功！`)
+    appendResult(JSON.stringify(menu, null, 2))
+    message.success('菜单配置获取成功')
+  } catch (error) { appendResult(`❌ 获取菜单配置失败: ${error}`); message.error('获取菜单配置失败') }
+  finally { wechatLoading.value = false }
+}
+
+const wechatGetTemplateList = async () => {
+  if (!selectedWeChat.value) { message.warning('请先选择微信小程序'); return }
+  wechatLoading.value = true
+  try {
+    const item = wechatData.value.find(i => i.id === selectedWeChat.value)!
+    appendResult(`获取微信模板列表: ${item.name}`)
+    const tokenResponse = await WeChatAPI.getAccessToken(item.appId, item.appSecret)
+    const templates = await WeChatAPI.getTemplateList(tokenResponse.access_token)
+    appendResult(`✅ 模板列表获取成功！`)
+    appendResult(JSON.stringify(templates, null, 2))
+    message.success('模板列表获取成功')
+  } catch (error) { appendResult(`❌ 获取模板列表失败: ${error}`); message.error('获取模板列表失败') }
+  finally { wechatLoading.value = false }
+}
+
+const wechatGetMaterialList = async () => {
+  if (!selectedWeChat.value) { message.warning('请先选择微信小程序'); return }
+  wechatLoading.value = true
+  try {
+    const item = wechatData.value.find(i => i.id === selectedWeChat.value)!
+    appendResult(`获取微信素材列表: ${item.name}`)
+    const tokenResponse = await WeChatAPI.getAccessToken(item.appId, item.appSecret)
+    const materials = await WeChatAPI.getMaterialList(tokenResponse.access_token)
+    appendResult(`✅ 素材列表获取成功！`)
+    appendResult(JSON.stringify(materials, null, 2))
+    message.success('素材列表获取成功')
+  } catch (error) { appendResult(`❌ 获取素材列表失败: ${error}`); message.error('获取素材列表失败') }
+  finally { wechatLoading.value = false }
+}
+
+const wechatGetCallbackIp = async () => {
+  if (!selectedWeChat.value) { message.warning('请先选择微信小程序'); return }
+  wechatLoading.value = true
+  try {
+    const item = wechatData.value.find(i => i.id === selectedWeChat.value)!
+    appendResult(`获取微信服务器IP: ${item.name}`)
+    const tokenResponse = await WeChatAPI.getAccessToken(item.appId, item.appSecret)
+    const ips = await WeChatAPI.getCallbackIp(tokenResponse.access_token)
+    appendResult(`✅ 微信服务器IP获取成功！`)
+    appendResult(JSON.stringify(ips, null, 2))
+    message.success('微信服务器IP获取成功')
+  } catch (error) { appendResult(`❌ 获取微信服务器IP失败: ${error}`); message.error('获取微信服务器IP失败') }
+  finally { wechatLoading.value = false }
+}
+
+const wechatNetCheck = async () => {
+  if (!selectedWeChat.value) { message.warning('请先选择微信小程序'); return }
+  wechatLoading.value = true
+  try {
+    const item = wechatData.value.find(i => i.id === selectedWeChat.value)!
+    appendResult(`微信网络检测: ${item.name}`)
+    const tokenResponse = await WeChatAPI.getAccessToken(item.appId, item.appSecret)
+    const result = await WeChatAPI.netCheck(tokenResponse.access_token)
+    appendResult(`✅ 网络检测完成！`)
+    appendResult(JSON.stringify(result, null, 2))
+    message.success('网络检测完成')
+  } catch (error) { appendResult(`❌ 网络检测失败: ${error}`); message.error('网络检测失败') }
+  finally { wechatLoading.value = false }
+}
+
+// ===== 企业微信新增功能 =====
+const enterpriseGetTagList = async () => {
+  if (!selectedEnterprise.value) { message.warning('请先选择企业微信应用'); return }
+  enterpriseLoading.value = true
+  try {
+    const item = enterpriseData.value.find(i => i.id === selectedEnterprise.value)!
+    appendResult(`获取企业微信标签列表: ${item.name}`)
+    const tokenResponse = await EnterpriseWeChatAPI.getAccessToken(item.corpId, item.corpSecret)
+    const tags = await EnterpriseWeChatAPI.getTagList(tokenResponse.access_token)
+    appendResult(`✅ 标签列表获取成功！`)
+    appendResult(JSON.stringify(tags, null, 2))
+    message.success('标签列表获取成功')
+  } catch (error) { appendResult(`❌ 获取标签列表失败: ${error}`); message.error('获取标签列表失败') }
+  finally { enterpriseLoading.value = false }
+}
+
+const enterpriseGetAgentList = async () => {
+  if (!selectedEnterprise.value) { message.warning('请先选择企业微信应用'); return }
+  enterpriseLoading.value = true
+  try {
+    const item = enterpriseData.value.find(i => i.id === selectedEnterprise.value)!
+    appendResult(`获取企业微信应用列表: ${item.name}`)
+    const tokenResponse = await EnterpriseWeChatAPI.getAccessToken(item.corpId, item.corpSecret)
+    const agents = await EnterpriseWeChatAPI.getAgentList(tokenResponse.access_token)
+    appendResult(`✅ 应用列表获取成功！`)
+    appendResult(JSON.stringify(agents, null, 2))
+    message.success('应用列表获取成功')
+  } catch (error) { appendResult(`❌ 获取应用列表失败: ${error}`); message.error('获取应用列表失败') }
+  finally { enterpriseLoading.value = false }
+}
+
+const enterpriseGetExternalContactList = async () => {
+  if (!selectedEnterprise.value) { message.warning('请先选择企业微信应用'); return }
+  enterpriseLoading.value = true
+  try {
+    const item = enterpriseData.value.find(i => i.id === selectedEnterprise.value)!
+    appendResult(`获取企业微信外部联系人: ${item.name}`)
+    const tokenResponse = await EnterpriseWeChatAPI.getAccessToken(item.corpId, item.corpSecret)
+    const contacts = await EnterpriseWeChatAPI.getExternalContactList(tokenResponse.access_token)
+    appendResult(`✅ 外部联系人获取成功！`)
+    appendResult(JSON.stringify(contacts, null, 2))
+    message.success('外部联系人获取成功')
+  } catch (error) { appendResult(`❌ 获取外部联系人失败: ${error}`); message.error('获取外部联系人失败') }
+  finally { enterpriseLoading.value = false }
+}
+
+const enterpriseGetExternalGroupChatList = async () => {
+  if (!selectedEnterprise.value) { message.warning('请先选择企业微信应用'); return }
+  enterpriseLoading.value = true
+  try {
+    const item = enterpriseData.value.find(i => i.id === selectedEnterprise.value)!
+    appendResult(`获取企业微信客户群列表: ${item.name}`)
+    const tokenResponse = await EnterpriseWeChatAPI.getAccessToken(item.corpId, item.corpSecret)
+    const groups = await EnterpriseWeChatAPI.getExternalGroupChatList(tokenResponse.access_token)
+    appendResult(`✅ 客户群列表获取成功！`)
+    appendResult(JSON.stringify(groups, null, 2))
+    message.success('客户群列表获取成功')
+  } catch (error) { appendResult(`❌ 获取客户群列表失败: ${error}`); message.error('获取客户群列表失败') }
+  finally { enterpriseLoading.value = false }
+}
+
+const enterpriseGetCallbackIp = async () => {
+  if (!selectedEnterprise.value) { message.warning('请先选择企业微信应用'); return }
+  enterpriseLoading.value = true
+  try {
+    const item = enterpriseData.value.find(i => i.id === selectedEnterprise.value)!
+    appendResult(`获取企业微信服务器IP: ${item.name}`)
+    const tokenResponse = await EnterpriseWeChatAPI.getAccessToken(item.corpId, item.corpSecret)
+    const ips = await EnterpriseWeChatAPI.getCallbackIp(tokenResponse.access_token)
+    appendResult(`✅ 服务器IP获取成功！`)
+    appendResult(JSON.stringify(ips, null, 2))
+    message.success('服务器IP获取成功')
+  } catch (error) { appendResult(`❌ 获取服务器IP失败: ${error}`); message.error('获取服务器IP失败') }
+  finally { enterpriseLoading.value = false }
+}
+
+// ===== 飞书新增功能 =====
+const feishuGetChatList = async () => {
+  if (!selectedFeishu.value) { message.warning('请先选择飞书应用'); return }
+  feishuLoading.value = true
+  try {
+    const item = feishuData.value.find(i => i.id === selectedFeishu.value)!
+    appendResult(`获取飞书群列表: ${item.name}`)
+    const tokenResponse = await FeishuAPI.getAccessToken(item.appId, item.appSecret)
+    const chats = await FeishuAPI.getChatList(tokenResponse.tenant_access_token!)
+    appendResult(`✅ 群列表获取成功！`)
+    appendResult(JSON.stringify(chats, null, 2))
+    message.success('群列表获取成功')
+  } catch (error) { appendResult(`❌ 获取群列表失败: ${error}`); message.error('获取群列表失败') }
+  finally { feishuLoading.value = false }
+}
+
+const feishuGetDocList = async () => {
+  if (!selectedFeishu.value) { message.warning('请先选择飞书应用'); return }
+  feishuLoading.value = true
+  try {
+    const item = feishuData.value.find(i => i.id === selectedFeishu.value)!
+    appendResult(`获取飞书云文档列表: ${item.name}`)
+    const tokenResponse = await FeishuAPI.getAccessToken(item.appId, item.appSecret)
+    const docs = await FeishuAPI.getDocList(tokenResponse.tenant_access_token!)
+    appendResult(`✅ 云文档列表获取成功！`)
+    appendResult(JSON.stringify(docs, null, 2))
+    message.success('云文档列表获取成功')
+  } catch (error) { appendResult(`❌ 获取云文档列表失败: ${error}`); message.error('获取云文档列表失败') }
+  finally { feishuLoading.value = false }
+}
+
+const feishuGetCalendarList = async () => {
+  if (!selectedFeishu.value) { message.warning('请先选择飞书应用'); return }
+  feishuLoading.value = true
+  try {
+    const item = feishuData.value.find(i => i.id === selectedFeishu.value)!
+    appendResult(`获取飞书日历列表: ${item.name}`)
+    const tokenResponse = await FeishuAPI.getAccessToken(item.appId, item.appSecret)
+    const calendars = await FeishuAPI.getCalendarList(tokenResponse.tenant_access_token!)
+    appendResult(`✅ 日历列表获取成功！`)
+    appendResult(JSON.stringify(calendars, null, 2))
+    message.success('日历列表获取成功')
+  } catch (error) { appendResult(`❌ 获取日历列表失败: ${error}`); message.error('获取日历列表失败') }
+  finally { feishuLoading.value = false }
+}
+
+const feishuGetApprovalList = async () => {
+  if (!selectedFeishu.value) { message.warning('请先选择飞书应用'); return }
+  feishuLoading.value = true
+  try {
+    const item = feishuData.value.find(i => i.id === selectedFeishu.value)!
+    appendResult(`获取飞书审批定义: ${item.name}`)
+    const tokenResponse = await FeishuAPI.getAccessToken(item.appId, item.appSecret)
+    const approvals = await FeishuAPI.getApprovalDefinitionList(tokenResponse.tenant_access_token!)
+    appendResult(`✅ 审批定义获取成功！`)
+    appendResult(JSON.stringify(approvals, null, 2))
+    message.success('审批定义获取成功')
+  } catch (error) { appendResult(`❌ 获取审批定义失败: ${error}`); message.error('获取审批定义失败') }
+  finally { feishuLoading.value = false }
+}
+
+// ===== 钉钉新增功能 =====
+const dingtalkGetRoleList = async () => {
+  if (!selectedDingTalk.value) { message.warning('请先选择钉钉应用'); return }
+  dingtalkLoading.value = true
+  try {
+    const item = dingtalkData.value.find(i => i.id === selectedDingTalk.value)!
+    appendResult(`获取钉钉角色列表: ${item.name}`)
+    const tokenResponse = await DingTalkAPI.getAccessToken(item.appKey, item.appSecret)
+    const roles = await DingTalkAPI.getRoleList(tokenResponse.access_token)
+    appendResult(`✅ 角色列表获取成功！`)
+    appendResult(JSON.stringify(roles, null, 2))
+    message.success('角色列表获取成功')
+  } catch (error) { appendResult(`❌ 获取角色列表失败: ${error}`); message.error('获取角色列表失败') }
+  finally { dingtalkLoading.value = false }
+}
+
+const dingtalkGetTagList = async () => {
+  if (!selectedDingTalk.value) { message.warning('请先选择钉钉应用'); return }
+  dingtalkLoading.value = true
+  try {
+    const item = dingtalkData.value.find(i => i.id === selectedDingTalk.value)!
+    appendResult(`获取钉钉标签列表: ${item.name}`)
+    const tokenResponse = await DingTalkAPI.getAccessToken(item.appKey, item.appSecret)
+    const tags = await DingTalkAPI.getTagList(tokenResponse.access_token)
+    appendResult(`✅ 标签列表获取成功！`)
+    appendResult(JSON.stringify(tags, null, 2))
+    message.success('标签列表获取成功')
+  } catch (error) { appendResult(`❌ 获取标签列表失败: ${error}`); message.error('获取标签列表失败') }
+  finally { dingtalkLoading.value = false }
+}
+
+const dingtalkGetChatList = async () => {
+  if (!selectedDingTalk.value) { message.warning('请先选择钉钉应用'); return }
+  dingtalkLoading.value = true
+  try {
+    const item = dingtalkData.value.find(i => i.id === selectedDingTalk.value)!
+    appendResult(`获取钉钉群列表: ${item.name}`)
+    const tokenResponse = await DingTalkAPI.getAccessToken(item.appKey, item.appSecret)
+    const chats = await DingTalkAPI.getChatList(tokenResponse.access_token)
+    appendResult(`✅ 群列表获取成功！`)
+    appendResult(JSON.stringify(chats, null, 2))
+    message.success('群列表获取成功')
+  } catch (error) { appendResult(`❌ 获取群列表失败: ${error}`); message.error('获取群列表失败') }
+  finally { dingtalkLoading.value = false }
+}
+
+const dingtalkGetExternalContactList = async () => {
+  if (!selectedDingTalk.value) { message.warning('请先选择钉钉应用'); return }
+  dingtalkLoading.value = true
+  try {
+    const item = dingtalkData.value.find(i => i.id === selectedDingTalk.value)!
+    appendResult(`获取钉钉外部联系人: ${item.name}`)
+    const tokenResponse = await DingTalkAPI.getAccessToken(item.appKey, item.appSecret)
+    const contacts = await DingTalkAPI.getExternalContactList(tokenResponse.access_token)
+    appendResult(`✅ 外部联系人获取成功！`)
+    appendResult(JSON.stringify(contacts, null, 2))
+    message.success('外部联系人获取成功')
+  } catch (error) { appendResult(`❌ 获取外部联系人失败: ${error}`); message.error('获取外部联系人失败') }
+  finally { dingtalkLoading.value = false }
+}
+
+const dingtalkGetProcessTemplateList = async () => {
+  if (!selectedDingTalk.value) { message.warning('请先选择钉钉应用'); return }
+  dingtalkLoading.value = true
+  try {
+    const item = dingtalkData.value.find(i => i.id === selectedDingTalk.value)!
+    appendResult(`获取钉钉审批模板: ${item.name}`)
+    const tokenResponse = await DingTalkAPI.getAccessToken(item.appKey, item.appSecret)
+    const templates = await DingTalkAPI.getProcessTemplateList(tokenResponse.access_token)
+    appendResult(`✅ 审批模板获取成功！`)
+    appendResult(JSON.stringify(templates, null, 2))
+    message.success('审批模板获取成功')
+  } catch (error) { appendResult(`❌ 获取审批模板失败: ${error}`); message.error('获取审批模板失败') }
+  finally { dingtalkLoading.value = false }
+}
+
+const dingtalkGetHrmEmployeeList = async () => {
+  if (!selectedDingTalk.value) { message.warning('请先选择钉钉应用'); return }
+  dingtalkLoading.value = true
+  try {
+    const item = dingtalkData.value.find(i => i.id === selectedDingTalk.value)!
+    appendResult(`获取钉钉人事员工列表: ${item.name}`)
+    const tokenResponse = await DingTalkAPI.getAccessToken(item.appKey, item.appSecret)
+    const employees = await DingTalkAPI.getHrmEmployeeList(tokenResponse.access_token)
+    appendResult(`✅ 人事员工列表获取成功！`)
+    appendResult(JSON.stringify(employees, null, 2))
+    message.success('人事员工列表获取成功')
+  } catch (error) { appendResult(`❌ 获取人事员工列表失败: ${error}`); message.error('获取人事员工列表失败') }
+  finally { dingtalkLoading.value = false }
 }
 
 const clearResult = () => {
